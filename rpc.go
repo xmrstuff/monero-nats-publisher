@@ -85,8 +85,8 @@ func (c *rpcClient) GetTransferByTxid(ctx context.Context, txid string) (*Tx, er
 	return resp.Result, nil
 }
 
-func newClient(host string) rpcClient {
-	return rpcClient{
+func newClient(host string) *rpcClient {
+	return &rpcClient{
 		Host:     host,
 		BasePath: "json_rpc",
 		HTTPClient: &http.Client{
