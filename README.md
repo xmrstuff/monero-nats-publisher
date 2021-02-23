@@ -11,3 +11,9 @@ GOOS=linux GOARCH=amd64 go build -a -tags netgo -ldflags '-w -extldflags "-stati
 ```bash
 go build -o publisher
 ```
+
+* Run tests
+
+```bash
+go test -v
+```
