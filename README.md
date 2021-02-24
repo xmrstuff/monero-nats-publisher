@@ -1,3 +1,10 @@
+CLI meant to be passed as `--tx-notify` argument to Monero Wallet.
+
+It fetches extrac context about the tx from the Wallet RPC, and then
+pushes the tx with its context to NATS
+
+It's an early work in progress
+
 ### Compiling
 
 * Statically (production ready)

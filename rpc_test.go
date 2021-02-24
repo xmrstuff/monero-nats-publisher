@@ -11,6 +11,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestNewRPCRequest(t *testing.T) {
+	txid := "dummy txid"
+	req := NewRPCRequest(txid)
+	assert.Equal(t, "0", req.ID)
+	assert.Equal(t, "2.0", req.JSONRPC)
+	assert.Equal(t, "get_transfer_by_txid", req.Method)
+	assert.Equal(t, txid, req.Params.TXID)
+}
+
 func makeServer(t *testing.T, expectedURL string, expectedMethod string, expectedTXID string, respStatus int, respBody string) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		// Make sure we're using the expected URL and HTTP method
@@ -18,10 +27,11 @@ func makeServer(t *testing.T, expectedURL string, expectedMethod string, expecte
 		assert.Equal(t, expectedMethod, req.Method)
 
 		// Make sure we're passing the expected request body
-		reqData := rpcRequest{}
+		reqData := RpcRequest{}
 		err := json.NewDecoder(req.Body).Decode(&reqData)
 		assert.Nil(t, err)
 		assert.Equal(t, expectedTXID, reqData.Params.TXID)
+		assert.Equal(t, "application/json", req.Header["Content-Type"][0])
 
 		rw.WriteHeader(respStatus)
 		rw.Header().Set("Content-Type", "application/json")
@@ -34,7 +44,21 @@ func TestUnknownError(t *testing.T) {
 	server := makeServer(t, "/json_rpc", "POST", txid, 500, "")
 	defer server.Close()
 
-	client := newClient(server.URL)
+	client := NewRPCClient(server.URL)
+	client.HTTPClient = server.Client()
+
+	ctx := context.Background()
+	tx, err := client.GetTransferByTxid(ctx, txid)
+	assert.Nil(t, tx)
+	assert.Error(t, err)
+}
+
+func TestMalformedResponsePayload(t *testing.T) {
+	txid := "invalid"
+	server := makeServer(t, "/json_rpc", "POST", txid, 200, "{}")
+	defer server.Close()
+
+	client := NewRPCClient(server.URL)
 	client.HTTPClient = server.Client()
 
 	ctx := context.Background()
@@ -48,7 +72,7 @@ func TestRPCError(t *testing.T) {
 	server := makeServer(t, "/json_rpc", "POST", txid, 200, `{"error": {"code": -8, "message": "some RPC error"}}`)
 	defer server.Close()
 
-	client := newClient(server.URL)
+	client := NewRPCClient(server.URL)
 	client.HTTPClient = server.Client()
 
 	ctx := context.Background()
@@ -82,7 +106,7 @@ func TestSuccess(t *testing.T) {
 	server := makeServer(t, "/json_rpc", "POST", txid, 200, jsonResp)
 	defer server.Close()
 
-	client := newClient(server.URL)
+	client := NewRPCClient(server.URL)
 	client.HTTPClient = server.Client()
 
 	ctx := context.Background()

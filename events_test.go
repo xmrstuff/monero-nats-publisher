@@ -30,7 +30,7 @@ func TestPushTxEventSuccess(t *testing.T) {
 
 	tx := Tx{
 		TXID: "some tx id",
-		Destinations: []destination{
+		Destinations: []Destination{
 			{Amount: 2, Address: "addr1"},
 			{Amount: 4, Address: "addr2"},
 		},
@@ -38,7 +38,7 @@ func TestPushTxEventSuccess(t *testing.T) {
 	assert.Nil(t, p.PushTxEvent(tx))
 	assert.Equal(t, moneroNATSChannel, dp.ChannelPassed)
 
-	parsedPayload := event{Data: Tx{}}
+	parsedPayload := Event{Data: Tx{}}
 	assert.Nil(t, json.Unmarshal(dp.PayloadPassed, &parsedPayload))
 
 	assert.NotNil(t, parsedPayload.Version)

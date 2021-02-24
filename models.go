@@ -1,13 +1,13 @@
 package main
 
-type destination struct {
+type Destination struct {
 	Amount  int    `json:"amount"`
 	Address string `json:"address"`
 }
 
 type Tx struct {
 	TXID         string        `json:"txid"`
-	Destinations []destination `json:"destinations"`
+	Destinations []Destination `json:"destinations"`
 	Height       int           `json:"height"`
 	Timestamp    int           `json:"timestamp"`
 	UnlockTime   int           `json:"unlock_time"`

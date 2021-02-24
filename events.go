@@ -1,6 +1,8 @@
 package main
 
-import "encoding/json"
+import (
+	"encoding/json"
+)
 
 const (
 	txCreated         = "transaction.created"
@@ -8,14 +10,14 @@ const (
 	moneroNATSChannel = "monero"
 )
 
-type event struct {
+type Event struct {
 	Type    string `json:"type"`
 	Version string `json:"version"`
 	Data    Tx     `json:"data"`
 }
 
-func newTXCreatedEvent(tx Tx) event {
-	return event{
+func NewTXCreatedEvent(tx Tx) Event {
+	return Event{
 		Type:    txCreated,
 		Version: eventVersion,
 		Data:    tx,
@@ -31,7 +33,7 @@ type EventPublishing struct {
 }
 
 func (ep *EventPublishing) PushTxEvent(tx Tx) error {
-	eventPayload := newTXCreatedEvent(tx)
+	eventPayload := NewTXCreatedEvent(tx)
 	jsonPayload, err := json.Marshal(eventPayload)
 	if err != nil {
 		return err

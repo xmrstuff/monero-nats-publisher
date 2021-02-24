@@ -18,26 +18,37 @@ const helpText = `
 	the transaction context.
 `
 
+const (
+	WalletRPCURLEnvVar = "WALLET_RPC_URL"
+	NATSURLEnvVar      = "NATS_URL"
+)
+
 func main() {
 	if len(os.Args) != 2 {
 		provided := len(os.Args) - 1
 		fmt.Printf("Expected 1 argument. %d provided\n", provided)
-		return
+		os.Exit(1)
 	}
 
 	arg := os.Args[1]
 
 	if _, pres := helpArgs[arg]; pres {
 		fmt.Print(helpText)
-		return
+		os.Exit(0)
 	}
 
 	fmt.Printf("Invoked with txid %s\n", arg)
 
-	txGetter := newClient("wallet-rpc-url")
-	evPublisher := NewNatsPublishingClient("nats-host")
+	wu := os.Getenv(WalletRPCURLEnvVar)
+	txGetter := NewRPCClient(wu)
 
-	ProcessTxid(arg, txGetter, evPublisher)
+	nu := os.Getenv(NATSURLEnvVar)
+	evPublisher := NewNatsPublishingClient(nu)
+
+	if err := ProcessTxid(arg, txGetter, evPublisher); err != nil {
+		fmt.Printf("%+v\n", err)
+		os.Exit(1)
+	}
 }
 
 type TxGetter interface {
