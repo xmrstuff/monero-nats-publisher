@@ -24,3 +24,10 @@ go build -o publisher
 ```bash
 go test -v
 ```
+
+### Configuration
+
+`publisher` takes the following env vars:
+
+* `WALLET_RPC_URL`: Points to the wallet RPC interface that can be used to fetch transactions context
+* `NATS_URL`: Points the NATS server where events should be pushed to
