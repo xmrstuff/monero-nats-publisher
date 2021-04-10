@@ -86,23 +86,27 @@ func TestSuccess(t *testing.T) {
 	jsonResp := fmt.Sprintf(`
 		{
 			"result": {
-				"txid": "%s",
-				"height": 300,
-				"timestamp": 1535918400,
-				"destinations": [
+				"transfers": [
 					{
+						"txid": "%s",
+						"height": 300,
+						"timestamp": 1535918400,
 						"address": "addr1",
-						"amount": 1
+						"amount": 1,
+						"confirmations": 20
 					},
 					{
+						"txid": "%s",
+						"height": 300,
+						"timestamp": 1535918400,
 						"address": "addr2",
-						"amount": 2
+						"amount": 2,
+						"confirmations": 20
 					}
 				]
-				
 			}
 		}
-	`, txid)
+	`, txid, txid)
 	server := makeServer(t, "/json_rpc", "POST", txid, 200, jsonResp)
 	defer server.Close()
 
@@ -110,11 +114,12 @@ func TestSuccess(t *testing.T) {
 	client.HTTPClient = server.Client()
 
 	ctx := context.Background()
-	tx, err := client.GetTransferByTxid(ctx, txid)
+	transfers, err := client.GetTransferByTxid(ctx, txid)
 	assert.Nil(t, err)
-	assert.Equal(t, txid, tx.TXID)
-	assert.Equal(t, "addr1", tx.Destinations[0].Address)
-	assert.Equal(t, 1, tx.Destinations[0].Amount)
-	assert.Equal(t, "addr2", tx.Destinations[1].Address)
-	assert.Equal(t, 2, tx.Destinations[1].Amount)
+	assert.Equal(t, txid, transfers[0].TXID)
+	assert.Equal(t, txid, transfers[1].TXID)
+	assert.Equal(t, "addr1", transfers[0].Address)
+	assert.Equal(t, "addr2", transfers[1].Address)
+	assert.Equal(t, 1, transfers[0].Amount)
+	assert.Equal(t, 2, transfers[1].Amount)
 }

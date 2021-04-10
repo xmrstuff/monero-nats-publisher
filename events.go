@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 )
 
 const (
@@ -34,6 +35,7 @@ type EventPublishing struct {
 
 func (ep *EventPublishing) PushTxEvent(tx Tx) error {
 	eventPayload := NewTXCreatedEvent(tx)
+	fmt.Printf("Event Payload: %+v", eventPayload)
 	jsonPayload, err := json.Marshal(eventPayload)
 	if err != nil {
 		return err

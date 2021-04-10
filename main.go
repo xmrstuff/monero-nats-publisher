@@ -32,7 +32,7 @@ func main() {
 
 	arg := os.Args[1]
 
-	if _, pres := helpArgs[arg]; pres {
+	if _, present := helpArgs[arg]; present {
 		fmt.Print(helpText)
 		os.Exit(0)
 	}
@@ -52,7 +52,7 @@ func main() {
 }
 
 type TxGetter interface {
-	GetTransferByTxid(context.Context, string) (*Tx, error)
+	GetTransferByTxid(context.Context, string) ([]RpcResponseTransaction, error)
 }
 
 type NatsTxEventPublisher interface {
@@ -63,9 +63,15 @@ type NatsTxEventPublisher interface {
 // Monero Wallet RPC. Then publishes a NATS event about the Transaction.
 func ProcessTxid(txid string, rc TxGetter, nc NatsTxEventPublisher) error {
 	ctx := context.Background()
-	tx, err := rc.GetTransferByTxid(ctx, txid)
+	transfers, err := rc.GetTransferByTxid(ctx, txid)
 	if err != nil {
 		return err
 	}
+
+	tx, err := RpcTransfersToTx(transfers)
+	if err != nil {
+		return err
+	}
+
 	return nc.PushTxEvent(*tx)
 }

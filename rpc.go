@@ -14,11 +14,32 @@ type RpcError struct {
 	Message string `json:"message"`
 }
 
+type RpcResponseTransaction struct {
+	TXID          string `json:"txid"`
+	Address       string `json:"address"`
+	Amount        int    `json:"amount"`
+	Confirmations int    `json:"confirmations"`
+	Height        int    `json:"height"`
+	Timestamp     int    `json:"timestamp"`
+	UnlockTime    int    `json:"unlock_time"`
+	Type          string `json:"type"`
+}
+
+func (t *RpcResponseTransaction) IsIncoming() bool {
+	validTypes := map[string]int{"in": 1, "pool": 1}
+	_, ok := validTypes[t.Type]
+	return ok
+}
+
+type RpcResult struct {
+	Transfers []RpcResponseTransaction `json:"transfers"`
+}
+
 type RpcResponse struct {
-	ID      string    `json:"id"`
-	JSONRPC string    `json:"jsonrpc"`
-	Result  *Tx       `json:"result"`
-	Error   *RpcError `json:"error"`
+	ID      string     `json:"id"`
+	JSONRPC string     `json:"jsonrpc"`
+	Result  *RpcResult `json:"result"`
+	Error   *RpcError  `json:"error"`
 }
 
 type GetTransferParams struct {
@@ -53,7 +74,7 @@ func (c *RPCClient) BaseURL() string {
 	return fmt.Sprintf("%s/%s", c.Host, c.BasePath)
 }
 
-func (c *RPCClient) GetTransferByTxid(ctx context.Context, txid string) (*Tx, error) {
+func (c *RPCClient) GetTransferByTxid(ctx context.Context, txid string) ([]RpcResponseTransaction, error) {
 	reqData := NewRPCRequest(txid)
 	buf := new(bytes.Buffer)
 	if err := json.NewEncoder(buf).Encode(reqData); err != nil {
@@ -90,7 +111,8 @@ func (c *RPCClient) GetTransferByTxid(ctx context.Context, txid string) (*Tx, er
 		return nil, fmt.Errorf("RPC Error. %+v", resp.Error)
 	}
 
-	return resp.Result, nil
+	fmt.Printf("Transfers from RPC: %+v:", resp.Result.Transfers)
+	return resp.Result.Transfers, nil
 }
 
 func NewRPCClient(host string) *RPCClient {

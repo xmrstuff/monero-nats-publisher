@@ -13,7 +13,7 @@ type TxGetterBroken struct {
 	PassedTXID string
 }
 
-func (g *TxGetterBroken) GetTransferByTxid(c context.Context, t string) (*Tx, error) {
+func (g *TxGetterBroken) GetTransferByTxid(c context.Context, t string) ([]RpcResponseTransaction, error) {
 	g.PassedTXID = t
 	g.CallsCount++
 	return nil, fmt.Errorf("Dummy Error")
@@ -49,10 +49,10 @@ type TxGetterRecording struct {
 	PassedTXID string
 }
 
-func (g *TxGetterRecording) GetTransferByTxid(c context.Context, t string) (*Tx, error) {
+func (g *TxGetterRecording) GetTransferByTxid(c context.Context, t string) ([]RpcResponseTransaction, error) {
 	g.PassedTXID = t
 	g.CallsCount++
-	return &Tx{TXID: t}, nil
+	return []RpcResponseTransaction{{TXID: t, Type: "in"}}, nil
 }
 
 type EvPublisherBreaking struct {
