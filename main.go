@@ -6,46 +6,49 @@ import (
 	"os"
 )
 
-var helpArgs = map[string]bool{"help": true, "-help": true, "--help": true}
+// TODO: Adopt a logging library
 
-const helpText = `
-	Takes a single string argument <txid>.
+func handleHelp(firstArg string) int {
+	helpArgs := map[string]bool{"help": true, "-help": true, "--help": true}
 
-	Calls the get_transfer_by_txid method of Monero Wallet RPC, passing
-	the value of <txid>; to obtain extra context about the transaction.
+	helpText := "Publisher: Takes a Tx ID, fetches extra context about it from " +
+		"Monero Wallet RPC, and pushes an event about the Tx to NATS. \n" +
+		"It takes 3 non-optional arguments: <rpcURL> <natsURL> <txID> \n" +
+		"* rpcURL: URL to the Monero Wallet RPC server\n" +
+		"* natsURL: URL to the NATS Streaming Server\n" +
+		"* txID: the ID of the Monero Transaction\n"
 
-	If successful, pushes a "transaction.created" event to NATS with all
-	the transaction context.
-`
-
-const (
-	WalletRPCURLEnvVar = "WALLET_RPC_URL"
-	NATSURLEnvVar      = "NATS_URL"
-)
+	if _, present := helpArgs[firstArg]; present {
+		fmt.Print(helpText)
+		return 0
+	}
+	fmt.Printf("Unknown argument %s", firstArg)
+	return 1
+}
 
 func main() {
-	if len(os.Args) != 2 {
-		provided := len(os.Args) - 1
-		fmt.Printf("Expected 1 argument. %d provided\n", provided)
+	argCount := len(os.Args)
+	if argCount != 4 && argCount != 2 {
+		provided := argCount - 1
+		fmt.Printf("Expected 3 argument. %d provided\n", provided)
 		os.Exit(1)
 	}
 
-	arg := os.Args[1]
-
-	if _, present := helpArgs[arg]; present {
-		fmt.Print(helpText)
-		os.Exit(0)
+	if argCount == 2 {
+		os.Exit(handleHelp(os.Args[1]))
 	}
 
-	fmt.Printf("Invoked with txid %s\n", arg)
+	rpcURL := os.Args[1]
+	natsURL := os.Args[2]
+	txID := os.Args[3]
 
-	wu := os.Getenv(WalletRPCURLEnvVar)
-	txGetter := NewRPCClient(wu)
+	fmt.Printf("Invoked with txid %s\n", txID)
 
-	nu := os.Getenv(NATSURLEnvVar)
-	evPublisher := NewNatsPublishingClient(nu)
+	txGetter := NewRPCClient(rpcURL)
 
-	if err := ProcessTxid(arg, txGetter, evPublisher); err != nil {
+	evPublisher := NewNatsPublishingClient(natsURL)
+
+	if err := ProcessTxid(txID, txGetter, evPublisher); err != nil {
 		fmt.Printf("%+v\n", err)
 		os.Exit(1)
 	}
