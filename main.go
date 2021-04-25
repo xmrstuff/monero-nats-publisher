@@ -17,6 +17,7 @@ func main() {
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "nats-url",
+				Aliases:     []string{"nats", "n"},
 				Value:       "http://localhost:4222",
 				Usage:       "URL to the NATS Streaming Server",
 				Destination: &natsURL,
@@ -30,6 +31,7 @@ func main() {
 				Flags: []cli.Flag{
 					&cli.StringFlag{
 						Name:        "monero-wallet-rpc-url",
+						Aliases:     []string{"wallet", "w"},
 						Value:       "http://localhost:38083",
 						Usage:       "URL to the RPC server of the Monero Wallet",
 						Destination: &walletURL,
@@ -53,6 +55,7 @@ func main() {
 				Flags: []cli.Flag{
 					&cli.StringFlag{
 						Name:        "monero-daemon-rpc-url",
+						Aliases:     []string{"daemon", "d"},
 						Value:       "http://localhost:38081",
 						Usage:       "URL to the RPC server of the Monero Daemon",
 						Destination: &daemonURL,
