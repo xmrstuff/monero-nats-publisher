@@ -1,7 +1,7 @@
-CLI meant to be passed as `--tx-notify` argument to Monero Wallet.
+CLI meant to be passed as `--tx-notify` argument to Monero Wallet, or `--block-notify` argument to Monero Daemon.
 
-It fetches extrac context about the tx from the Wallet RPC, and then
-pushes the tx with its context to NATS
+It fetches extra context about the tx from the Wallet RPC, or the block from the Monero Daemon RPC, and then
+pushes it to NATS
 
 It's an early work in progress
 
@@ -25,9 +25,17 @@ go build -o publisher
 go test -v
 ```
 
-### Configuration
+### Usage
 
-`publisher` takes the following env vars:
+Run `./publisher help` for detailed help.
 
-* `WALLET_RPC_URL`: Points to the wallet RPC interface that can be used to fetch transactions context
-* `NATS_URL`: Points the NATS server where events should be pushed to
+It implements a couple of CLI commands:
+
+* `./publisher tx <txid>`: Gathers extra context about the Tx and publishes it to NATS
+* `./publisher block <blockHash>`: Gathers extra context about the Block and publishes it to NATS
+
+It takes the following optional flags:
+
+* `--wallet`: URL to the Monero Wallet RPC
+* `--daemon`: URL to the Monero Daemon RPC
+* `--nats`: URL to the NATS Streaming server

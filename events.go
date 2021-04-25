@@ -7,14 +7,15 @@ import (
 
 const (
 	txCreated         = "transaction.created"
+	blockCreated      = "block.created"
 	eventVersion      = "1.0"
 	moneroNATSChannel = "monero"
 )
 
 type Event struct {
-	Type    string `json:"type"`
-	Version string `json:"version"`
-	Data    Tx     `json:"data"`
+	Type    string      `json:"type"`
+	Version string      `json:"version"`
+	Data    interface{} `json:"data"`
 }
 
 func NewTXCreatedEvent(tx Tx) Event {
@@ -22,6 +23,14 @@ func NewTXCreatedEvent(tx Tx) Event {
 		Type:    txCreated,
 		Version: eventVersion,
 		Data:    tx,
+	}
+}
+
+func NewBlockCreatedEvent(b Block) Event {
+	return Event{
+		Type:    blockCreated,
+		Version: eventVersion,
+		Data:    b,
 	}
 }
 
@@ -33,10 +42,9 @@ type EventPublishing struct {
 	Publisher Publisher
 }
 
-func (ep *EventPublishing) PushTxEvent(tx Tx) error {
-	eventPayload := NewTXCreatedEvent(tx)
-	fmt.Printf("Event Payload: %+v", eventPayload)
-	jsonPayload, err := json.Marshal(eventPayload)
+func (ep *EventPublishing) PushEvent(ev interface{}) error {
+	fmt.Println(fmt.Sprintf("Event Payload: %+v", ev))
+	jsonPayload, err := json.Marshal(ev)
 	if err != nil {
 		return err
 	}
@@ -47,6 +55,16 @@ func (ep *EventPublishing) PushTxEvent(tx Tx) error {
 	}
 
 	return nil
+}
+
+func (ep *EventPublishing) PushTxEvent(tx Tx) error {
+	eventPayload := NewTXCreatedEvent(tx)
+	return ep.PushEvent(eventPayload)
+}
+
+func (ep *EventPublishing) PushBlockEvent(b Block) error {
+	ev := NewBlockCreatedEvent(b)
+	return ep.PushEvent(ev)
 }
 
 func NewNatsPublishingClient(natsHost string) *EventPublishing {

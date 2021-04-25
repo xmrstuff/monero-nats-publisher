@@ -3,78 +3,124 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
+
+	cli "github.com/urfave/cli/v2"
 )
 
 // TODO: Adopt a logging library
 
-func handleHelp(firstArg string) int {
-	helpArgs := map[string]bool{"help": true, "-help": true, "--help": true}
-
-	helpText := "Publisher: Takes a Tx ID, fetches extra context about it from " +
-		"Monero Wallet RPC, and pushes an event about the Tx to NATS. \n" +
-		"It takes 3 non-optional arguments: <rpcURL> <natsURL> <txID> \n" +
-		"* rpcURL: URL to the Monero Wallet RPC server\n" +
-		"* natsURL: URL to the NATS Streaming Server\n" +
-		"* txID: the ID of the Monero Transaction\n"
-
-	if _, present := helpArgs[firstArg]; present {
-		fmt.Print(helpText)
-		return 0
-	}
-	fmt.Printf("Unknown argument %s", firstArg)
-	return 1
-}
-
 func main() {
-	argCount := len(os.Args)
-	if argCount != 4 && argCount != 2 {
-		provided := argCount - 1
-		fmt.Printf("Expected 3 argument. %d provided\n", provided)
-		os.Exit(1)
+	var natsURL, walletURL, daemonURL string
+	app := &cli.App{
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:        "nats-url",
+				Aliases:     []string{"nats", "n"},
+				Value:       "http://localhost:4222",
+				Usage:       "URL to the NATS Streaming Server",
+				Destination: &natsURL,
+			},
+		},
+		Commands: []*cli.Command{
+			{
+				Name:    "transaction",
+				Aliases: []string{"tx"},
+				Usage:   "Gather extra context about a Monero Tx and publish it through NATS",
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:        "monero-wallet-rpc-url",
+						Aliases:     []string{"wallet", "w"},
+						Value:       "http://localhost:38083",
+						Usage:       "URL to the RPC server of the Monero Wallet",
+						Destination: &walletURL,
+					},
+				},
+				Action: func(c *cli.Context) error {
+					txid := c.Args().First()
+					if txid == "" {
+						return fmt.Errorf("tx command requires a txid argument")
+					}
+
+					rpcClient := NewRPCClient(walletURL)
+					evPublisher := NewNatsPublishingClient(natsURL)
+					return ProcessTxid(txid, rpcClient, evPublisher)
+				},
+			},
+			{
+				Name:    "block",
+				Aliases: []string{"blk"},
+				Usage:   "Gather extra context about a Monero Block and publish it through NATS",
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:        "monero-daemon-rpc-url",
+						Aliases:     []string{"daemon", "d"},
+						Value:       "http://localhost:38081",
+						Usage:       "URL to the RPC server of the Monero Daemon",
+						Destination: &daemonURL,
+					},
+				},
+				Action: func(c *cli.Context) error {
+					blockHash := c.Args().First()
+					if blockHash == "" {
+						return fmt.Errorf("block command requires a blockHash argument")
+					}
+
+					rpcClient := NewRPCClient(daemonURL)
+					evPublisher := NewNatsPublishingClient(natsURL)
+					return ProcessBlockHash(blockHash, rpcClient, evPublisher)
+				},
+			},
+		},
 	}
 
-	if argCount == 2 {
-		os.Exit(handleHelp(os.Args[1]))
-	}
-
-	rpcURL := os.Args[1]
-	natsURL := os.Args[2]
-	txID := os.Args[3]
-
-	fmt.Printf("Invoked with txid %s\n", txID)
-
-	txGetter := NewRPCClient(rpcURL)
-
-	evPublisher := NewNatsPublishingClient(natsURL)
-
-	if err := ProcessTxid(txID, txGetter, evPublisher); err != nil {
-		fmt.Printf("%+v\n", err)
-		os.Exit(1)
+	err := app.Run(os.Args)
+	if err != nil {
+		log.Fatal(err)
 	}
 }
 
 type TxGetter interface {
-	GetTransferByTxid(context.Context, string) ([]RpcResponseTransaction, error)
+	GetTransferByTxid(context.Context, string) ([]RpcTx, error)
 }
 
-type NatsTxEventPublisher interface {
+type TxEventPublisher interface {
 	PushTxEvent(Tx) error
 }
 
 // ProcessTxid fetches extra context about the Monero Transaction from
 // Monero Wallet RPC. Then publishes a NATS event about the Transaction.
-func ProcessTxid(txid string, rc TxGetter, nc NatsTxEventPublisher) error {
+func ProcessTxid(txid string, rc TxGetter, nc TxEventPublisher) error {
 	ctx := context.Background()
 	transfers, err := rc.GetTransferByTxid(ctx, txid)
 	if err != nil {
 		return err
 	}
 
-	tx, err := RpcTransfersToTx(transfers)
+	tx, err := RpcTxToTx(transfers)
 	if err != nil {
 		return err
 	}
 
 	return nc.PushTxEvent(*tx)
+}
+
+type BlockGetter interface {
+	GetBlockByHash(context.Context, string) (*RpcBlock, error)
+}
+
+type BlockEventPublisher interface {
+	PushBlockEvent(Block) error
+}
+
+func ProcessBlockHash(blockHash string, rc BlockGetter, nc BlockEventPublisher) error {
+	ctx := context.Background()
+	rpcBlock, err := rc.GetBlockByHash(ctx, blockHash)
+	if err != nil {
+		return err
+	}
+
+	blk := RpcBlockToBlock(*rpcBlock)
+	return nc.PushBlockEvent(blk)
 }

@@ -16,10 +16,10 @@ type Tx struct {
 	Confirmations int           `json:"confirmations"`
 }
 
-// RpcTransfersToTx converts the Monero Transaction representation
+// RpcTxToTx converts the Monero Transaction representation
 // returned by the RPC, into the representation that we intend to
 // push through NATS
-func RpcTransfersToTx(rpcTxs []RpcResponseTransaction) (*Tx, error) {
+func RpcTxToTx(rpcTxs []RpcTx) (*Tx, error) {
 	tx := Tx{}
 	for _, rpcTx := range rpcTxs {
 		if !rpcTx.IsIncoming() {
@@ -45,4 +45,22 @@ func RpcTransfersToTx(rpcTxs []RpcResponseTransaction) (*Tx, error) {
 	}
 
 	return &tx, nil
+}
+
+type Block struct {
+	Hash      string   `json:"hash"`
+	Height    int      `json:"height"`
+	Timestamp int      `json:"timestamp"`
+	PrevHash  string   `json:"prev_hash"`
+	TxHashes  []string `json:"tx_hashes"`
+}
+
+func RpcBlockToBlock(b RpcBlock) Block {
+	return Block{
+		Hash:      b.BlockHeader.Hash,
+		Height:    b.BlockHeader.Height,
+		Timestamp: b.BlockHeader.Timestamp,
+		PrevHash:  b.BlockHeader.PrevHash,
+		TxHashes:  b.TxHashes,
+	}
 }

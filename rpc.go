@@ -9,61 +9,24 @@ import (
 	"time"
 )
 
+type RPCRequestPayload struct {
+	ID      string      `json:"id"`
+	JSONRPC string      `json:"jsonrpc"`
+	Method  string      `json:"method"`
+	Params  interface{} `json:"params"`
+}
+
 type RpcError struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
 }
 
-type RpcResponseTransaction struct {
-	TXID          string `json:"txid"`
-	Address       string `json:"address"`
-	Amount        int    `json:"amount"`
-	Confirmations int    `json:"confirmations"`
-	Height        int    `json:"height"`
-	Timestamp     int    `json:"timestamp"`
-	UnlockTime    int    `json:"unlock_time"`
-	Type          string `json:"type"`
-}
-
-func (t *RpcResponseTransaction) IsIncoming() bool {
-	validTypes := map[string]int{"in": 1, "pool": 1}
-	_, ok := validTypes[t.Type]
-	return ok
-}
-
-type RpcResult struct {
-	Transfers []RpcResponseTransaction `json:"transfers"`
-}
-
 type RpcResponse struct {
-	ID      string     `json:"id"`
-	JSONRPC string     `json:"jsonrpc"`
-	Result  *RpcResult `json:"result"`
-	Error   *RpcError  `json:"error"`
+	ID      string      `json:"id"`
+	JSONRPC string      `json:"jsonrpc"`
+	Result  interface{} `json:"result"`
+	Error   *RpcError   `json:"error"`
 }
-
-type GetTransferParams struct {
-	TXID string `json:"txid"`
-}
-
-type RpcRequest struct {
-	ID      string            `json:"id"`
-	JSONRPC string            `json:"jsonrpc"`
-	Method  string            `json:"method"`
-	Params  GetTransferParams `json:"params"`
-}
-
-func NewRPCRequest(txid string) RpcRequest {
-	return RpcRequest{
-		ID:      "0",
-		JSONRPC: "2.0",
-		Method:  "get_transfer_by_txid",
-		Params: GetTransferParams{
-			TXID: txid,
-		},
-	}
-}
-
 type RPCClient struct {
 	HTTPClient *http.Client
 	Host       string
@@ -74,45 +37,44 @@ func (c *RPCClient) BaseURL() string {
 	return fmt.Sprintf("%s/%s", c.Host, c.BasePath)
 }
 
-func (c *RPCClient) GetTransferByTxid(ctx context.Context, txid string) ([]RpcResponseTransaction, error) {
-	reqData := NewRPCRequest(txid)
+func (c *RPCClient) MakeRequest(ctx context.Context, rpcReq interface{}, result interface{}) error {
 	buf := new(bytes.Buffer)
-	if err := json.NewEncoder(buf).Encode(reqData); err != nil {
-		return nil, err
+	if err := json.NewEncoder(buf).Encode(rpcReq); err != nil {
+		return err
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", c.BaseURL(), buf)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	rawResp, err := c.HTTPClient.Do(req)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer rawResp.Body.Close()
 
 	if rawResp.StatusCode != 200 {
 		// RPC returns 200 unless something went really wrong
-		return nil, fmt.Errorf("Unknown Error. Code %d", rawResp.StatusCode)
+		return fmt.Errorf("Unknown Error. Code %d", rawResp.StatusCode)
 	}
 
-	resp := RpcResponse{}
+	resp := RpcResponse{
+		Result: result,
+	}
 	if err := json.NewDecoder(rawResp.Body).Decode(&resp); err != nil {
-		return nil, err
+		return err
 	}
 
 	if resp.Result == nil && resp.Error == nil {
-		return nil, fmt.Errorf("Unable to parse RPC response: %+v", resp)
+		return fmt.Errorf("Unable to parse RPC response: %+v", resp)
 	}
 
 	if resp.Error != nil {
-		return nil, fmt.Errorf("RPC Error. %+v", resp.Error)
+		return fmt.Errorf("RPC Error. %+v", resp.Error)
 	}
-
-	fmt.Printf("Transfers from RPC: %+v:", resp.Result.Transfers)
-	return resp.Result.Transfers, nil
+	return nil
 }
 
 func NewRPCClient(host string) *RPCClient {
