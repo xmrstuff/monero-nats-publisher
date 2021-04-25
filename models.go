@@ -16,10 +16,10 @@ type Tx struct {
 	Confirmations int           `json:"confirmations"`
 }
 
-// RpcTransfersToTx converts the Monero Transaction representation
+// RpcTxToTx converts the Monero Transaction representation
 // returned by the RPC, into the representation that we intend to
 // push through NATS
-func RpcTransfersToTx(rpcTxs []RpcResponseTransaction) (*Tx, error) {
+func RpcTxToTx(rpcTxs []RpcTx) (*Tx, error) {
 	tx := Tx{}
 	for _, rpcTx := range rpcTxs {
 		if !rpcTx.IsIncoming() {

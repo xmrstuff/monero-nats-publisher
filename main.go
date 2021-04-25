@@ -55,7 +55,7 @@ func main() {
 }
 
 type TxGetter interface {
-	GetTransferByTxid(context.Context, string) ([]RpcResponseTransaction, error)
+	GetTransferByTxid(context.Context, string) ([]RpcTx, error)
 }
 
 type NatsTxEventPublisher interface {
@@ -71,7 +71,7 @@ func ProcessTxid(txid string, rc TxGetter, nc NatsTxEventPublisher) error {
 		return err
 	}
 
-	tx, err := RpcTransfersToTx(transfers)
+	tx, err := RpcTxToTx(transfers)
 	if err != nil {
 		return err
 	}

@@ -7,7 +7,7 @@ import (
 )
 
 func TestRpcTransfersToTxSuccess(t *testing.T) {
-	transfers := []RpcResponseTransaction{
+	transfers := []RpcTx{
 		{
 			TXID:          "dummy txid",
 			Height:        20,
@@ -39,7 +39,7 @@ func TestRpcTransfersToTxSuccess(t *testing.T) {
 			Type:          "out",
 		},
 	}
-	tx, err := RpcTransfersToTx(transfers)
+	tx, err := RpcTxToTx(transfers)
 	assert.Nil(t, err)
 
 	// The Transfer with type "out" was ignored
@@ -58,7 +58,7 @@ func TestRpcTransfersToTxSuccess(t *testing.T) {
 }
 
 func TestRpcTransfersToTxFailure(t *testing.T) {
-	transfers := []RpcResponseTransaction{
+	transfers := []RpcTx{
 		{
 			TXID:          "dummy txid",
 			Height:        20,
@@ -70,7 +70,7 @@ func TestRpcTransfersToTxFailure(t *testing.T) {
 			Type:          "out",
 		},
 	}
-	tx, err := RpcTransfersToTx(transfers)
+	tx, err := RpcTxToTx(transfers)
 	// No TX was created, because the only Transfer
 	// has type "out"
 	assert.Error(t, err)
