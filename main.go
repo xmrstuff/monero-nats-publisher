@@ -58,13 +58,13 @@ type TxGetter interface {
 	GetTransferByTxid(context.Context, string) ([]RpcTx, error)
 }
 
-type NatsTxEventPublisher interface {
+type TxEventPublisher interface {
 	PushTxEvent(Tx) error
 }
 
 // ProcessTxid fetches extra context about the Monero Transaction from
 // Monero Wallet RPC. Then publishes a NATS event about the Transaction.
-func ProcessTxid(txid string, rc TxGetter, nc NatsTxEventPublisher) error {
+func ProcessTxid(txid string, rc TxGetter, nc TxEventPublisher) error {
 	ctx := context.Background()
 	transfers, err := rc.GetTransferByTxid(ctx, txid)
 	if err != nil {
@@ -77,4 +77,23 @@ func ProcessTxid(txid string, rc TxGetter, nc NatsTxEventPublisher) error {
 	}
 
 	return nc.PushTxEvent(*tx)
+}
+
+type BlockGetter interface {
+	GetBlockByHash(context.Context, string) (*RpcBlock, error)
+}
+
+type BlockEventPublisher interface {
+	PushBlockEvent(Block) error
+}
+
+func ProcessBlockHash(blockHash string, rc BlockGetter, nc BlockEventPublisher) error {
+	ctx := context.Background()
+	rpcBlock, err := rc.GetBlockByHash(ctx, blockHash)
+	if err != nil {
+		return err
+	}
+
+	blk := RpcBlockToBlock(*rpcBlock)
+	return nc.PushBlockEvent(blk)
 }

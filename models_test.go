@@ -76,3 +76,23 @@ func TestRpcTransfersToTxFailure(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, tx)
 }
+
+func TestRpcBlockToBlock(t *testing.T) {
+	rb := RpcBlock{
+		BlockHeader: RpcBlockHeader{
+			Hash:      "some hash",
+			Height:    100,
+			Timestamp: 300,
+			PrevHash:  "hash of prev block",
+		},
+		TxHashes: []string{"hash1", "hash2"},
+	}
+
+	b := RpcBlockToBlock(rb)
+
+	assert.Equal(t, rb.BlockHeader.Hash, b.Hash)
+	assert.Equal(t, rb.BlockHeader.Height, b.Height)
+	assert.Equal(t, rb.BlockHeader.Timestamp, b.Timestamp)
+	assert.Equal(t, rb.BlockHeader.PrevHash, b.PrevHash)
+	assert.Equal(t, rb.TxHashes, b.TxHashes)
+}

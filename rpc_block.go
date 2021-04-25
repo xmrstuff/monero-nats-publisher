@@ -4,14 +4,16 @@ import (
 	"context"
 )
 
+type RpcBlockHeader struct {
+	Hash      string `json:"hash"`
+	Height    int    `json:"Height"`
+	Timestamp int    `json:"timestamp"`
+	PrevHash  string `json:"prev_hash"`
+}
+
 type RpcBlock struct {
-	BlockHeader struct {
-		Hash      string `json:"hash"`
-		Height    int    `json:"Height"`
-		Timestamp int    `json:"timestamp"`
-		PrevHash  string `json:"prev_hash"`
-	} `json:"block_header"`
-	TxHashes []string `json:"tx_hashes"`
+	BlockHeader RpcBlockHeader `json:"block_header"`
+	TxHashes    []string       `json:"tx_hashes"`
 }
 
 type GetBlockParams struct {

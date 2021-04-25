@@ -20,6 +20,12 @@ func (p *DummySucessfulPublisher) Publish(payload []byte, channel string) error 
 	return nil
 }
 
+type DummyFailingPublisher struct{}
+
+func (p *DummyFailingPublisher) Publish(payload []byte, channel string) error {
+	return fmt.Errorf("")
+}
+
 func TestPushTxEventSuccess(t *testing.T) {
 
 	dp := DummySucessfulPublisher{}
@@ -38,18 +44,13 @@ func TestPushTxEventSuccess(t *testing.T) {
 	assert.Nil(t, p.PushTxEvent(tx))
 	assert.Equal(t, moneroNATSChannel, dp.ChannelPassed)
 
-	parsedPayload := Event{Data: Tx{}}
-	assert.Nil(t, json.Unmarshal(dp.PayloadPassed, &parsedPayload))
+	evTx := Tx{}
+	evPayload := Event{Data: &evTx}
+	assert.Nil(t, json.Unmarshal(dp.PayloadPassed, &evPayload))
 
-	assert.NotNil(t, parsedPayload.Version)
-	assert.Equal(t, txCreated, parsedPayload.Type)
-	assert.Equal(t, tx.TXID, parsedPayload.Data.TXID)
-}
-
-type DummyFailingPublisher struct{}
-
-func (p *DummyFailingPublisher) Publish(payload []byte, channel string) error {
-	return fmt.Errorf("")
+	assert.NotNil(t, evPayload.Version)
+	assert.Equal(t, txCreated, evPayload.Type)
+	assert.Equal(t, tx.TXID, evTx.TXID)
 }
 
 func TestPushTxEventFailure(t *testing.T) {
@@ -58,4 +59,38 @@ func TestPushTxEventFailure(t *testing.T) {
 
 	tx := Tx{}
 	assert.Error(t, p.PushTxEvent(tx))
+}
+
+func TestPushBlockEventSuccess(t *testing.T) {
+	dp := DummySucessfulPublisher{}
+	p := EventPublishing{Publisher: &dp}
+
+	assert.Zero(t, dp.ChannelPassed)
+	assert.Zero(t, dp.PayloadPassed)
+
+	blk := Block{
+		Hash:      "some hash",
+		Height:    300,
+		Timestamp: 9000,
+		PrevHash:  "hash of prev block",
+		TxHashes:  []string{"tx1", "tx2"},
+	}
+	assert.Nil(t, p.PushBlockEvent(blk))
+	assert.Equal(t, moneroNATSChannel, dp.ChannelPassed)
+
+	evBlk := Block{}
+	evPayload := Event{Data: &evBlk}
+	assert.Nil(t, json.Unmarshal(dp.PayloadPassed, &evPayload))
+
+	assert.NotNil(t, evPayload.Version)
+	assert.Equal(t, blockCreated, evPayload.Type)
+	assert.Equal(t, blk.Hash, evBlk.Hash)
+}
+
+func TestPushBlockEventFailure(t *testing.T) {
+	dp := DummyFailingPublisher{}
+	p := EventPublishing{Publisher: &dp}
+
+	blk := Block{}
+	assert.Error(t, p.PushBlockEvent(blk))
 }
