@@ -43,7 +43,7 @@ type EventPublishing struct {
 }
 
 func (ep *EventPublishing) PushEvent(ev interface{}) error {
-	fmt.Printf("Event Payload: %+v", ev)
+	fmt.Println(fmt.Sprintf("Event Payload: %+v", ev))
 	jsonPayload, err := json.Marshal(ev)
 	if err != nil {
 		return err
