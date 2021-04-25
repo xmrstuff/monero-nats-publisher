@@ -35,5 +35,5 @@ VOLUME ["/monero"]
 ENTRYPOINT [ \
     "/usr/bin/monero-wallet-rpc", \
     "--non-interactive", \
-    "--tx-notify=/usr/bin/publisher" \
+    "--tx-notify=/usr/bin/publisher tx %s" \
     ]
