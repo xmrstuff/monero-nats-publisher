@@ -3,7 +3,7 @@ CLI meant to be passed as `--tx-notify` argument to Monero Wallet, or `--block-n
 It fetches extra context about the tx from the Wallet RPC, or the block from the Monero Daemon RPC, and then
 pushes it to NATS
 
-It's an early work in progress
+**It's an early work in progress**
 
 ### Compiling
 
@@ -39,3 +39,4 @@ It takes the following optional flags:
 * `--wallet`: URL to the Monero Wallet RPC
 * `--daemon`: URL to the Monero Daemon RPC
 * `--nats`: URL to the NATS Streaming server
+* `--ancestors`: Max number of ancestor blocks' hashes to include with every published block

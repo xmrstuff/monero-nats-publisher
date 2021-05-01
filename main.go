@@ -13,6 +13,7 @@ import (
 
 func main() {
 	var natsURL, walletURL, daemonURL string
+	var maxBlockAncestors int
 	app := &cli.App{
 		Flags: []cli.Flag{
 			&cli.StringFlag{
@@ -60,6 +61,13 @@ func main() {
 						Usage:       "URL to the RPC server of the Monero Daemon",
 						Destination: &daemonURL,
 					},
+					&cli.IntFlag{
+						Name:        "max-block-ancestors",
+						Aliases:     []string{"ancestors", "ma"},
+						Value:       2,
+						Usage:       "Max number of ancestor blocks to fetch with each block",
+						Destination: &maxBlockAncestors,
+					},
 				},
 				Action: func(c *cli.Context) error {
 					blockHash := c.Args().First()
@@ -69,7 +77,7 @@ func main() {
 
 					rpcClient := NewRPCClient(daemonURL)
 					evPublisher := NewNatsPublishingClient(natsURL)
-					return ProcessBlockHash(blockHash, rpcClient, evPublisher)
+					return ProcessBlockHash(blockHash, maxBlockAncestors, rpcClient, evPublisher)
 				},
 			},
 		},
@@ -114,7 +122,7 @@ type BlockEventPublisher interface {
 	PushBlockEvent(Block) error
 }
 
-func ProcessBlockHash(blockHash string, rc BlockGetter, nc BlockEventPublisher) error {
+func ProcessBlockHash(blockHash string, maxAncestors int, rc BlockGetter, nc BlockEventPublisher) error {
 	ctx := context.Background()
 	rpcBlock, err := rc.GetBlockByHash(ctx, blockHash)
 	if err != nil {
@@ -122,5 +130,21 @@ func ProcessBlockHash(blockHash string, rc BlockGetter, nc BlockEventPublisher) 
 	}
 
 	blk := RpcBlockToBlock(*rpcBlock)
+
+	if len(blk.PrevHashes) > 0 {
+		ancestorHash := blk.PrevHashes[0]
+		for i := 0; i < maxAncestors; i++ {
+			ancestor, err := rc.GetBlockByHash(ctx, ancestorHash)
+			if err != nil {
+				return err
+			}
+			ancestorHash = ancestor.BlockHeader.PrevHash
+			if ancestorHash == "" {
+				break
+			}
+			blk.PrevHashes = append(blk.PrevHashes, ancestorHash)
+		}
+	}
+
 	return nc.PushBlockEvent(blk)
 }
