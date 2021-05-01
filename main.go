@@ -63,7 +63,7 @@ func main() {
 					},
 					&cli.IntFlag{
 						Name:        "max-extra-ancestor-blocks",
-						Aliases:     []string{"ancestors", "ma"},
+						Aliases:     []string{"extra-ancestors", "ea"},
 						Value:       0,
 						Usage:       "Max number of extra ancestor blocks to include with each published block",
 						Destination: &maxExtraAncestors,
