@@ -13,7 +13,7 @@ import (
 
 func main() {
 	var natsURL, walletURL, daemonURL string
-	var maxBlockAncestors int
+	var maxExtraAncestors int
 	app := &cli.App{
 		Flags: []cli.Flag{
 			&cli.StringFlag{
@@ -62,11 +62,11 @@ func main() {
 						Destination: &daemonURL,
 					},
 					&cli.IntFlag{
-						Name:        "max-block-ancestors",
+						Name:        "max-extra-ancestor-blocks",
 						Aliases:     []string{"ancestors", "ma"},
-						Value:       2,
-						Usage:       "Max number of ancestor blocks to fetch with each block",
-						Destination: &maxBlockAncestors,
+						Value:       0,
+						Usage:       "Max number of extra ancestor blocks to include with each published block",
+						Destination: &maxExtraAncestors,
 					},
 				},
 				Action: func(c *cli.Context) error {
@@ -77,7 +77,7 @@ func main() {
 
 					rpcClient := NewRPCClient(daemonURL)
 					evPublisher := NewNatsPublishingClient(natsURL)
-					return ProcessBlockHash(blockHash, maxBlockAncestors, rpcClient, evPublisher)
+					return ProcessBlockHash(blockHash, maxExtraAncestors, rpcClient, evPublisher)
 				},
 			},
 		},
@@ -122,7 +122,7 @@ type BlockEventPublisher interface {
 	PushBlockEvent(Block) error
 }
 
-func ProcessBlockHash(blockHash string, maxAncestors int, rc BlockGetter, nc BlockEventPublisher) error {
+func ProcessBlockHash(blockHash string, maxExtraAncestors int, rc BlockGetter, nc BlockEventPublisher) error {
 	ctx := context.Background()
 	rpcBlock, err := rc.GetBlockByHash(ctx, blockHash)
 	if err != nil {
@@ -133,7 +133,7 @@ func ProcessBlockHash(blockHash string, maxAncestors int, rc BlockGetter, nc Blo
 
 	if len(blk.PrevHashes) > 0 {
 		ancestorHash := blk.PrevHashes[0]
-		for i := 0; i < maxAncestors; i++ {
+		for i := 0; i < maxExtraAncestors; i++ {
 			ancestor, err := rc.GetBlockByHash(ctx, ancestorHash)
 			if err != nil {
 				return err

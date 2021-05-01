@@ -60,7 +60,7 @@ func TestProcessBlockHash(t *testing.T) {
 			Returns: []error{nil},
 		}
 
-		maxAncestors := 0 // Ignoring ancestors
+		maxAncestors := 0 // Ignoring extra ancestors
 		err := ProcessBlockHash(blockHash, maxAncestors, &rpcClient, &evPublisher)
 		assert.Nil(t, err)
 
