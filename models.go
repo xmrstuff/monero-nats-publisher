@@ -48,19 +48,24 @@ func RpcTxToTx(rpcTxs []RpcTx) (*Tx, error) {
 }
 
 type Block struct {
-	Hash      string   `json:"hash"`
-	Height    int      `json:"height"`
-	Timestamp int      `json:"timestamp"`
-	PrevHash  string   `json:"prev_hash"`
-	TxHashes  []string `json:"tx_hashes"`
+	Hash       string   `json:"hash"`
+	Height     int      `json:"height"`
+	Timestamp  int      `json:"timestamp"`
+	PrevHashes []string `json:"prev_hashes"`
+	TxHashes   []string `json:"tx_hashes"`
 }
 
 func RpcBlockToBlock(b RpcBlock) Block {
+	prevHashes := []string{}
+	if b.BlockHeader.PrevHash != "" {
+		prevHashes = append(prevHashes, b.BlockHeader.PrevHash)
+	}
+
 	return Block{
-		Hash:      b.BlockHeader.Hash,
-		Height:    b.BlockHeader.Height,
-		Timestamp: b.BlockHeader.Timestamp,
-		PrevHash:  b.BlockHeader.PrevHash,
-		TxHashes:  b.TxHashes,
+		Hash:       b.BlockHeader.Hash,
+		Height:     b.BlockHeader.Height,
+		Timestamp:  b.BlockHeader.Timestamp,
+		PrevHashes: prevHashes,
+		TxHashes:   b.TxHashes,
 	}
 }

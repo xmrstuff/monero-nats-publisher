@@ -78,21 +78,28 @@ func TestRpcTransfersToTxFailure(t *testing.T) {
 }
 
 func TestRpcBlockToBlock(t *testing.T) {
-	rb := RpcBlock{
-		BlockHeader: RpcBlockHeader{
-			Hash:      "some hash",
-			Height:    100,
-			Timestamp: 300,
-			PrevHash:  "hash of prev block",
-		},
-		TxHashes: []string{"hash1", "hash2"},
+	prevHashCases := []string{"hash of prev block", ""}
+	expectedPrevHashes := [][]string{{"hash of prev block"}, {}}
+
+	for i := 0; i < len(prevHashCases); i++ {
+		t.Run("", func(t *testing.T) {
+			rb := RpcBlock{
+				BlockHeader: RpcBlockHeader{
+					Hash:      "some hash",
+					Height:    100,
+					Timestamp: 300,
+					PrevHash:  prevHashCases[i],
+				},
+				TxHashes: []string{"hash1", "hash2"},
+			}
+
+			b := RpcBlockToBlock(rb)
+
+			assert.Equal(t, rb.BlockHeader.Hash, b.Hash)
+			assert.Equal(t, rb.BlockHeader.Height, b.Height)
+			assert.Equal(t, rb.BlockHeader.Timestamp, b.Timestamp)
+			assert.Equal(t, expectedPrevHashes[i], b.PrevHashes)
+			assert.Equal(t, rb.TxHashes, b.TxHashes)
+		})
 	}
-
-	b := RpcBlockToBlock(rb)
-
-	assert.Equal(t, rb.BlockHeader.Hash, b.Hash)
-	assert.Equal(t, rb.BlockHeader.Height, b.Height)
-	assert.Equal(t, rb.BlockHeader.Timestamp, b.Timestamp)
-	assert.Equal(t, rb.BlockHeader.PrevHash, b.PrevHash)
-	assert.Equal(t, rb.TxHashes, b.TxHashes)
 }

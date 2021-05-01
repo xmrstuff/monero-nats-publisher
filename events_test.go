@@ -69,11 +69,11 @@ func TestPushBlockEventSuccess(t *testing.T) {
 	assert.Zero(t, dp.PayloadPassed)
 
 	blk := Block{
-		Hash:      "some hash",
-		Height:    300,
-		Timestamp: 9000,
-		PrevHash:  "hash of prev block",
-		TxHashes:  []string{"tx1", "tx2"},
+		Hash:       "some hash",
+		Height:     300,
+		Timestamp:  9000,
+		PrevHashes: []string{"hash of prev block"},
+		TxHashes:   []string{"tx1", "tx2"},
 	}
 	assert.Nil(t, p.PushBlockEvent(blk))
 	assert.Equal(t, moneroNATSChannel, dp.ChannelPassed)
