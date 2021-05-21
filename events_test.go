@@ -20,10 +20,18 @@ func (p *DummySucessfulPublisher) Publish(payload []byte, channel string) error 
 	return nil
 }
 
+func (p *DummySucessfulPublisher) IsConnected() bool {
+	return true
+}
+
 type DummyFailingPublisher struct{}
 
 func (p *DummyFailingPublisher) Publish(payload []byte, channel string) error {
 	return fmt.Errorf("")
+}
+
+func (p *DummyFailingPublisher) IsConnected() bool {
+	return false
 }
 
 func TestPushTxEventSuccess(t *testing.T) {

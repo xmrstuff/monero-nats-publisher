@@ -26,6 +26,17 @@ func main() {
 		},
 		Commands: []*cli.Command{
 			{
+				Name:  "ping",
+				Usage: "Pings the NATS server, to verify that connection is configured properly",
+				Action: func(c *cli.Context) error {
+					evPublisher := NewNatsPublishingClient(natsURL)
+					if !evPublisher.IsConnected() {
+						return fmt.Errorf("failed to ping NATS at %s", natsURL)
+					}
+					return nil
+				},
+			},
+			{
 				Name:    "transaction",
 				Aliases: []string{"tx"},
 				Usage:   "Gather extra context about a Monero Tx and publish it through NATS",

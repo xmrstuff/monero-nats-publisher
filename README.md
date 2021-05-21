@@ -29,8 +29,9 @@ go test -v
 
 Run `./publisher help` for detailed help.
 
-It implements a couple of CLI commands:
+It implements 3 CLI commands:
 
+* `./publisher ping`: Checks that it can connect to the NATS server properly
 * `./publisher tx <txid>`: Gathers extra context about the Tx and publishes it to NATS
 * `./publisher block <blockHash>`: Gathers extra context about the Block and publishes it to NATS
 

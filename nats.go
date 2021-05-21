@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/nats-io/nats.go"
 	stan "github.com/nats-io/stan.go"
 )
@@ -13,6 +15,16 @@ type NATSClient struct {
 	ClusterID string
 	ClientID  string
 	NATSHost  string
+}
+
+func (c *NATSClient) IsConnected() bool {
+	nc, err := nats.Connect(c.NATSHost)
+	if err != nil {
+		fmt.Println(err)
+		return false
+	}
+
+	return nc.IsConnected()
 }
 
 func (c *NATSClient) Publish(payload []byte, channel string) error {

@@ -36,10 +36,15 @@ func NewBlockCreatedEvent(b Block) Event {
 
 type Publisher interface {
 	Publish([]byte, string) error
+	IsConnected() bool
 }
 
 type EventPublishing struct {
 	Publisher Publisher
+}
+
+func (ep *EventPublishing) IsConnected() bool {
+	return ep.Publisher.IsConnected()
 }
 
 func (ep *EventPublishing) PushEvent(ev interface{}) error {

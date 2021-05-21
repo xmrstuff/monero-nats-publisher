@@ -1,4 +1,4 @@
-module github.com/xmrstuff/monero-wallet-nats-publisher
+module github.com/xmrstuff/monero-nats-publisher
 
 go 1.15
 
