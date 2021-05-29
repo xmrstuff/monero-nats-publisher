@@ -13,7 +13,7 @@ import (
 
 func main() {
 	var natsURL, walletURL, daemonURL string
-	var maxExtraAncestors int
+	var maxExtraAncestors, ignoreBelowHeight int
 	app := &cli.App{
 		Flags: []cli.Flag{
 			&cli.StringFlag{
@@ -22,6 +22,13 @@ func main() {
 				Value:       "http://localhost:4222",
 				Usage:       "URL to the NATS Streaming Server",
 				Destination: &natsURL,
+			},
+			&cli.IntFlag{
+				Name:        "ignore-below-height",
+				Aliases:     []string{"i"},
+				Value:       0,
+				Usage:       "Ignores Blocks and Transactions with height lower than this value",
+				Destination: &ignoreBelowHeight,
 			},
 		},
 		Commands: []*cli.Command{
@@ -57,7 +64,7 @@ func main() {
 
 					rpcClient := NewRPCClient(walletURL)
 					evPublisher := NewNatsPublishingClient(natsURL)
-					return ProcessTxid(txid, rpcClient, evPublisher)
+					return ProcessTxid(txid, ignoreBelowHeight, rpcClient, evPublisher)
 				},
 			},
 			{
@@ -88,7 +95,7 @@ func main() {
 
 					rpcClient := NewRPCClient(daemonURL)
 					evPublisher := NewNatsPublishingClient(natsURL)
-					return ProcessBlockHash(blockHash, maxExtraAncestors, rpcClient, evPublisher)
+					return ProcessBlockHash(blockHash, maxExtraAncestors, ignoreBelowHeight, rpcClient, evPublisher)
 				},
 			},
 		},
@@ -110,7 +117,7 @@ type TxEventPublisher interface {
 
 // ProcessTxid fetches extra context about the Monero Transaction from
 // Monero Wallet RPC. Then publishes a NATS event about the Transaction.
-func ProcessTxid(txid string, rc TxGetter, nc TxEventPublisher) error {
+func ProcessTxid(txid string, ignoreBelowheight int, rc TxGetter, nc TxEventPublisher) error {
 	ctx := context.Background()
 	transfers, err := rc.GetTransferByTxid(ctx, txid)
 	if err != nil {
@@ -122,40 +129,60 @@ func ProcessTxid(txid string, rc TxGetter, nc TxEventPublisher) error {
 		return err
 	}
 
+	if tx.Height < ignoreBelowheight {
+		// The Tx is below ignoring height. It won't be
+		// published to NATS
+		return nil
+	}
+
 	return nc.PushTxEvent(*tx)
 }
 
 type BlockGetter interface {
 	GetBlockByHash(context.Context, string) (*RpcBlock, error)
+	GetBlockHeadersRange(context.Context, int, int) ([]RpcBlockHeader, error)
 }
 
 type BlockEventPublisher interface {
 	PushBlockEvent(Block) error
 }
 
-func ProcessBlockHash(blockHash string, maxExtraAncestors int, rc BlockGetter, nc BlockEventPublisher) error {
+func ProcessBlockHash(blockHash string, maxExtraAncestors, ignoreBelowHeight int, bg BlockGetter, nc BlockEventPublisher) error {
 	ctx := context.Background()
-	rpcBlock, err := rc.GetBlockByHash(ctx, blockHash)
+	rpcBlock, err := bg.GetBlockByHash(ctx, blockHash)
 	if err != nil {
 		return err
 	}
 
 	blk := RpcBlockToBlock(*rpcBlock)
 
-	if len(blk.PrevHashes) > 0 {
-		ancestorHash := blk.PrevHashes[0]
-		for i := 0; i < maxExtraAncestors; i++ {
-			ancestor, err := rc.GetBlockByHash(ctx, ancestorHash)
-			if err != nil {
-				return err
-			}
-			ancestorHash = ancestor.BlockHeader.PrevHash
-			if ancestorHash == "" {
-				break
-			}
-			blk.PrevHashes = append(blk.PrevHashes, ancestorHash)
-		}
+	if blk.Height < ignoreBelowHeight {
+		// Block is below ignoring height. Its ancestors won't be fetched
+		// and it won't be published to NATS
+		return nil
 	}
+
+	if blk.Height == 0 {
+		// Blocks is Genesis Block. It has no ancestors
+		return nc.PushBlockEvent(blk)
+	}
+
+	end := blk.Height - 1
+	start := blk.Height - maxExtraAncestors
+	if start < 0 {
+		start = 0
+	}
+
+	blocks, err := bg.GetBlockHeadersRange(ctx, start, end)
+	if err != nil {
+		return err
+	}
+
+	prevHashes := []string{}
+	for _, b := range blocks {
+		prevHashes = append(prevHashes, b.Hash)
+	}
+	blk.PrevHashes = prevHashes
 
 	return nc.PushBlockEvent(blk)
 }

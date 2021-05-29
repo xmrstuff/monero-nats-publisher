@@ -11,6 +11,10 @@ type RpcBlockHeader struct {
 	PrevHash  string `json:"prev_hash"`
 }
 
+type RpcBlockHeaders struct {
+	Headers []RpcBlockHeader `json:"headers"`
+}
+
 type RpcBlock struct {
 	BlockHeader RpcBlockHeader `json:"block_header"`
 	TxHashes    []string       `json:"tx_hashes"`
@@ -39,4 +43,30 @@ func (c *RPCClient) GetBlockByHash(ctx context.Context, hash string) (*RpcBlock,
 		return nil, err
 	}
 	return &rpcBlock, nil
+}
+
+type GetBlocksRangeParams struct {
+	StartHeight int `json:"start_height"`
+	EndHeight   int `json:"end_height"`
+}
+
+func NewGetBlocksRangePayload(start, end int) RPCRequestPayload {
+	return RPCRequestPayload{
+		ID:      "0",
+		JSONRPC: "2.0",
+		Method:  "get_block_headers_range",
+		Params: GetBlocksRangeParams{
+			StartHeight: start,
+			EndHeight:   end,
+		},
+	}
+}
+
+func (c *RPCClient) GetBlockHeadersRange(ctx context.Context, start, end int) ([]RpcBlockHeader, error) {
+	rpcReq := NewGetBlocksRangePayload(start, end)
+	rpcBlocks := RpcBlockHeaders{}
+	if err := c.MakeRequest(ctx, rpcReq, &rpcBlocks); err != nil {
+		return nil, err
+	}
+	return rpcBlocks.Headers, nil
 }
