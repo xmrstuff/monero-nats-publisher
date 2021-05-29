@@ -107,8 +107,9 @@ func TestProcessBlockHash(t *testing.T) {
 			Returns: []error{nil},
 		}
 
-		maxAncestors := 0 // Ignoring extra ancestors
-		err := ProcessBlockHash(blockHash, maxAncestors, &rpcClient, &evPublisher)
+		maxAncestors := 0      // Ignoring extra ancestors
+		ignoreBelowHeight := 0 // Not ignoring any height
+		err := ProcessBlockHash(blockHash, maxAncestors, ignoreBelowHeight, &rpcClient, &evPublisher)
 		assert.Nil(t, err)
 
 		assert.Equal(t, 1, rpcClient.GetBlockCallsCount)
@@ -145,7 +146,8 @@ func TestProcessBlockHash(t *testing.T) {
 		}
 
 		maxAncestors := 2
-		err := ProcessBlockHash(hashes[3], maxAncestors, &rpcClient, &evPublisher)
+		ignoreBelowHeight := 0 // Not ignoring any height
+		err := ProcessBlockHash(hashes[3], maxAncestors, ignoreBelowHeight, &rpcClient, &evPublisher)
 		assert.Nil(t, err)
 
 		assert.Equal(t, 1, rpcClient.GetBlockCallsCount)
@@ -189,7 +191,8 @@ func TestProcessBlockHash(t *testing.T) {
 		}
 
 		maxAncestors := 5
-		err := ProcessBlockHash(hashes[3], maxAncestors, &rpcClient, &evPublisher)
+		ignoreBelowHeight := 0 // Not ignoring any height
+		err := ProcessBlockHash(hashes[3], maxAncestors, ignoreBelowHeight, &rpcClient, &evPublisher)
 		assert.Nil(t, err)
 
 		assert.Equal(t, 1, rpcClient.GetBlockCallsCount)
@@ -202,6 +205,47 @@ func TestProcessBlockHash(t *testing.T) {
 		assert.Equal(t, 1, evPublisher.CallsCount)
 		assert.Equal(t, hashes[3], evPublisher.PassedBlocks[0].Hash)
 		assert.Equal(t, []string{hashes[2], hashes[1], hashes[0]}, evPublisher.PassedBlocks[0].PrevHashes)
+	})
+
+	t.Run("Success, block below ignoring height", func(t *testing.T) {
+		hashes := []string{"block 2", "block 3", "block 4", "block 5"}
+		heights := []int{2, 3, 4, 5}
+
+		rpcClient := MockedBlockGetter{
+			GetBlockReturns: []MockedGetBlockReturn{
+				{
+					b: &RpcBlock{
+						BlockHeader: RpcBlockHeader{Hash: hashes[3], Height: heights[3], PrevHash: hashes[2]},
+					},
+					e: nil,
+				},
+			},
+			GetBlocksRangeReturns: []MockedGetBlocksRangeReturn{
+				{
+					e: nil,
+					b: []RpcBlockHeader{
+						{Hash: hashes[2], Height: heights[2]},
+						{Hash: hashes[1], Height: heights[1]},
+					},
+				},
+			},
+		}
+		evPublisher := MockedBlockEventPublisher{
+			Returns: []error{nil},
+		}
+
+		maxAncestors := 2
+		ignoreBelowHeight := heights[3] + 1 // the block will be ignored
+		err := ProcessBlockHash(hashes[3], maxAncestors, ignoreBelowHeight, &rpcClient, &evPublisher)
+		assert.Nil(t, err)
+
+		assert.Equal(t, 1, rpcClient.GetBlockCallsCount)
+		assert.Equal(t, []string{hashes[3]}, rpcClient.HashArgs)
+
+		// The ancestors were not fetched, and the block was not published, because
+		// it's below ignoring height
+		assert.Equal(t, 0, rpcClient.GetBlocksRangeCallsCount)
+		assert.Equal(t, 0, evPublisher.CallsCount)
 	})
 
 	t.Run("GetBlockByHash RPC call fails", func(t *testing.T) {
@@ -219,7 +263,7 @@ func TestProcessBlockHash(t *testing.T) {
 			Returns: []error{nil},
 		}
 
-		err := ProcessBlockHash(blockHash, 0, &rpcClient, &evPublisher)
+		err := ProcessBlockHash(blockHash, 0, 0, &rpcClient, &evPublisher)
 		assert.Error(t, err)
 
 		assert.Equal(t, 1, rpcClient.GetBlockCallsCount)
@@ -253,7 +297,7 @@ func TestProcessBlockHash(t *testing.T) {
 			Returns: []error{nil},
 		}
 
-		err := ProcessBlockHash(blockHash, 1, &rpcClient, &evPublisher)
+		err := ProcessBlockHash(blockHash, 1, 0, &rpcClient, &evPublisher)
 		assert.Error(t, err)
 
 		assert.Equal(t, 1, rpcClient.GetBlockCallsCount)
@@ -281,7 +325,7 @@ func TestProcessBlockHash(t *testing.T) {
 			Returns: []error{fmt.Errorf("Dummy Error")},
 		}
 
-		err := ProcessBlockHash(blockHash, 0, &rpcClient, &evPublisher)
+		err := ProcessBlockHash(blockHash, 0, 0, &rpcClient, &evPublisher)
 		assert.Error(t, err)
 
 		assert.Equal(t, 1, rpcClient.GetBlockCallsCount)

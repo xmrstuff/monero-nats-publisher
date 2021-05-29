@@ -13,7 +13,7 @@ import (
 
 func main() {
 	var natsURL, walletURL, daemonURL string
-	var maxExtraAncestors int
+	var maxExtraAncestors, ignoreBelowHeight int
 	app := &cli.App{
 		Flags: []cli.Flag{
 			&cli.StringFlag{
@@ -22,6 +22,13 @@ func main() {
 				Value:       "http://localhost:4222",
 				Usage:       "URL to the NATS Streaming Server",
 				Destination: &natsURL,
+			},
+			&cli.IntFlag{
+				Name:        "ignore-below-height",
+				Aliases:     []string{"i"},
+				Value:       0,
+				Usage:       "Ignores Blocks and Transactions which height lower than this value",
+				Destination: &ignoreBelowHeight,
 			},
 		},
 		Commands: []*cli.Command{
@@ -88,7 +95,7 @@ func main() {
 
 					rpcClient := NewRPCClient(daemonURL)
 					evPublisher := NewNatsPublishingClient(natsURL)
-					return ProcessBlockHash(blockHash, maxExtraAncestors, rpcClient, evPublisher)
+					return ProcessBlockHash(blockHash, maxExtraAncestors, ignoreBelowHeight, rpcClient, evPublisher)
 				},
 			},
 		},
@@ -134,7 +141,7 @@ type BlockEventPublisher interface {
 	PushBlockEvent(Block) error
 }
 
-func ProcessBlockHash(blockHash string, maxExtraAncestors int, bg BlockGetter, nc BlockEventPublisher) error {
+func ProcessBlockHash(blockHash string, maxExtraAncestors, ignoreBelowHeight int, bg BlockGetter, nc BlockEventPublisher) error {
 	ctx := context.Background()
 	rpcBlock, err := bg.GetBlockByHash(ctx, blockHash)
 	if err != nil {
@@ -142,6 +149,12 @@ func ProcessBlockHash(blockHash string, maxExtraAncestors int, bg BlockGetter, n
 	}
 
 	blk := RpcBlockToBlock(*rpcBlock)
+
+	if blk.Height < ignoreBelowHeight {
+		// Block is below ignoring height. Its ancestors won't be fetched
+		// and it won't be published to NATS
+		return nil
+	}
 
 	if blk.Height == 0 {
 		// Blocks is Genesis Block. It has no ancestors
