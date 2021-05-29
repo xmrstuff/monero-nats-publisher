@@ -27,7 +27,7 @@ func main() {
 				Name:        "ignore-below-height",
 				Aliases:     []string{"i"},
 				Value:       0,
-				Usage:       "Ignores Blocks and Transactions which height lower than this value",
+				Usage:       "Ignores Blocks and Transactions with height lower than this value",
 				Destination: &ignoreBelowHeight,
 			},
 		},
