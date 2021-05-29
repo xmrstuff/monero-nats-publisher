@@ -8,73 +8,93 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type TxGetterBroken struct {
+type MockedGetTxByTxidReturn struct {
+	Txs []RpcTx
+	E   error
+}
+type MockedTxGetter struct {
 	CallsCount int
-	PassedTXID string
+	TxidArgs   []string
+	Returns    []MockedGetTxByTxidReturn
 }
 
-func (g *TxGetterBroken) GetTransferByTxid(c context.Context, t string) ([]RpcTx, error) {
-	g.PassedTXID = t
+func (g *MockedTxGetter) GetTransferByTxid(c context.Context, t string) ([]RpcTx, error) {
 	g.CallsCount++
-	return nil, fmt.Errorf("Dummy Error")
+
+	g.TxidArgs = append(g.TxidArgs, t)
+
+	result := g.Returns[0]
+	if len(g.Returns) > 1 {
+		g.Returns = g.Returns[1:]
+	} else {
+		g.Returns = []MockedGetTxByTxidReturn{}
+	}
+
+	return result.Txs, result.E
 }
 
-type TxEventPublisherRecording struct {
+type MockedTxPublisher struct {
 	CallsCount int
-	PassedTX   *Tx
+	TxArgs     []Tx
+	Returns    []error
 }
 
-func (p *TxEventPublisherRecording) PushTxEvent(t Tx) error {
-	p.PassedTX = &t
-	p.CallsCount++
-	return nil
-}
-
-type TxGetterRecording struct {
-	CallsCount int
-	PassedTXID string
-}
-
-func (g *TxGetterRecording) GetTransferByTxid(c context.Context, t string) ([]RpcTx, error) {
-	g.PassedTXID = t
+func (g *MockedTxPublisher) PushTxEvent(tx Tx) error {
 	g.CallsCount++
-	return []RpcTx{{TXID: t, Type: "in", Height: 3}}, nil
-}
 
-type TxEvPublisherBreaking struct {
-	CallsCount int
-	PassedTX   *Tx
-}
+	g.TxArgs = append(g.TxArgs, tx)
 
-func (p *TxEvPublisherBreaking) PushTxEvent(tx Tx) error {
-	p.CallsCount++
-	p.PassedTX = &tx
-	return fmt.Errorf("Dummy Error")
+	result := g.Returns[0]
+	if len(g.Returns) > 1 {
+		g.Returns = g.Returns[1:]
+	} else {
+		g.Returns = []error{}
+	}
+
+	return result
 }
 
 func TestProcessTxid(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		txid := "dummy tx"
-		txGetter := TxGetterRecording{}
-		evPublisher := TxEventPublisherRecording{}
+		txHeight := 3
+		txGetter := MockedTxGetter{
+			Returns: []MockedGetTxByTxidReturn{
+				{
+					E:   nil,
+					Txs: []RpcTx{{TXID: txid, Type: "in", Height: txHeight}},
+				},
+			},
+		}
+		evPublisher := MockedTxPublisher{Returns: []error{nil}}
 
 		ignoreBelowHeight := 0 // Don't ignore any Tx
 		err := ProcessTxid(txid, ignoreBelowHeight, &txGetter, &evPublisher)
 		assert.Nil(t, err)
 
 		assert.Equal(t, 1, evPublisher.CallsCount)
-		assert.Equal(t, txid, evPublisher.PassedTX.TXID)
+		assert.Equal(t, txid, evPublisher.TxArgs[0].TXID)
 	})
 
 	t.Run("Success, Tx below ignoring height", func(t *testing.T) {
 		txid := "dummy tx"
-		txGetter := TxGetterRecording{}
-		evPublisher := TxEventPublisherRecording{}
+		txHeight := 3
+		txGetter := MockedTxGetter{
+			Returns: []MockedGetTxByTxidReturn{
+				{
+					E:   nil,
+					Txs: []RpcTx{{TXID: txid, Type: "in", Height: txHeight}},
+				},
+			},
+		}
+		evPublisher := MockedTxPublisher{Returns: []error{nil}}
 
-		ignoreBelowHeight := 5 // The Tx will be ignored
+		ignoreBelowHeight := txHeight + 2 // The Tx will be ignored
 		err := ProcessTxid(txid, ignoreBelowHeight, &txGetter, &evPublisher)
 		assert.Nil(t, err)
+
+		assert.Equal(t, 1, txGetter.CallsCount)
 
 		// The Tx was not pushed to NATS, because it is below ignoring height
 		assert.Equal(t, 0, evPublisher.CallsCount)
@@ -82,32 +102,51 @@ func TestProcessTxid(t *testing.T) {
 
 	t.Run("RPC Error", func(t *testing.T) {
 		txid := "dummy tx"
-		txGetter := TxGetterBroken{}
-		evPublisher := TxEventPublisherRecording{}
+		txGetter := MockedTxGetter{
+			Returns: []MockedGetTxByTxidReturn{
+				{
+					E:   fmt.Errorf("Dummy Error"),
+					Txs: nil,
+				},
+			},
+		}
+		evPublisher := MockedTxPublisher{
+			Returns: []error{nil},
+		}
 
 		ignoreBelowHeight := 0
 		err := ProcessTxid(txid, ignoreBelowHeight, &txGetter, &evPublisher)
 		assert.Error(t, err)
 
 		assert.Equal(t, 1, txGetter.CallsCount)
-		assert.Equal(t, txid, txGetter.PassedTXID)
+		assert.Equal(t, txid, txGetter.TxidArgs[0])
 
 		assert.Equal(t, 0, evPublisher.CallsCount)
 	})
 
 	t.Run("Event publishing fails", func(t *testing.T) {
 		txid := "dummy tx"
-		txGetter := TxGetterRecording{}
-		evPublisher := TxEvPublisherBreaking{}
+		txHeight := 3
+		txGetter := MockedTxGetter{
+			Returns: []MockedGetTxByTxidReturn{
+				{
+					E:   nil,
+					Txs: []RpcTx{{TXID: txid, Type: "in", Height: txHeight}},
+				},
+			},
+		}
+		evPublisher := MockedTxPublisher{
+			Returns: []error{fmt.Errorf("Dummy NATS Error")},
+		}
 
 		ignoreBelowHeight := 0
 		err := ProcessTxid(txid, ignoreBelowHeight, &txGetter, &evPublisher)
 		assert.Error(t, err)
 
 		assert.Equal(t, 1, txGetter.CallsCount)
-		assert.Equal(t, txid, txGetter.PassedTXID)
+		assert.Equal(t, txid, txGetter.TxidArgs[0])
 
 		assert.Equal(t, 1, evPublisher.CallsCount)
-		assert.Equal(t, txid, evPublisher.PassedTX.TXID)
+		assert.Equal(t, txid, evPublisher.TxArgs[0].TXID)
 	})
 }
