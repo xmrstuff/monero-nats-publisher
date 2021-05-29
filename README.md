@@ -1,3 +1,7 @@
+## Monero NATS Publisher CLI 
+
+![Build Status](https://github.com/xmrstuff/monero-nats-publisher/actions/workflows/go.yml/badge.svg?branch=master)
+
 CLI meant to be passed as `--tx-notify` argument to Monero Wallet, or `--block-notify` argument to Monero Daemon.
 
 It fetches extra context about the tx from the Wallet RPC, or the block from the Monero Daemon RPC, and then
