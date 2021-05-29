@@ -127,35 +127,43 @@ func ProcessTxid(txid string, rc TxGetter, nc TxEventPublisher) error {
 
 type BlockGetter interface {
 	GetBlockByHash(context.Context, string) (*RpcBlock, error)
+	GetBlockHeadersRange(context.Context, int, int) ([]RpcBlockHeader, error)
 }
 
 type BlockEventPublisher interface {
 	PushBlockEvent(Block) error
 }
 
-func ProcessBlockHash(blockHash string, maxExtraAncestors int, rc BlockGetter, nc BlockEventPublisher) error {
+func ProcessBlockHash(blockHash string, maxExtraAncestors int, bg BlockGetter, nc BlockEventPublisher) error {
 	ctx := context.Background()
-	rpcBlock, err := rc.GetBlockByHash(ctx, blockHash)
+	rpcBlock, err := bg.GetBlockByHash(ctx, blockHash)
 	if err != nil {
 		return err
 	}
 
 	blk := RpcBlockToBlock(*rpcBlock)
 
-	if len(blk.PrevHashes) > 0 {
-		ancestorHash := blk.PrevHashes[0]
-		for i := 0; i < maxExtraAncestors; i++ {
-			ancestor, err := rc.GetBlockByHash(ctx, ancestorHash)
-			if err != nil {
-				return err
-			}
-			ancestorHash = ancestor.BlockHeader.PrevHash
-			if ancestorHash == "" {
-				break
-			}
-			blk.PrevHashes = append(blk.PrevHashes, ancestorHash)
-		}
+	if blk.Height == 0 {
+		// Blocks is Genesis Block. It has no ancestors
+		return nc.PushBlockEvent(blk)
 	}
+
+	end := blk.Height - 1
+	start := blk.Height - maxExtraAncestors
+	if start < 0 {
+		start = 0
+	}
+
+	blocks, err := bg.GetBlockHeadersRange(ctx, start, end)
+	if err != nil {
+		return err
+	}
+
+	prevHashes := []string{}
+	for _, b := range blocks {
+		prevHashes = append(prevHashes, b.Hash)
+	}
+	blk.PrevHashes = prevHashes
 
 	return nc.PushBlockEvent(blk)
 }

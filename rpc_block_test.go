@@ -80,3 +80,90 @@ func TestGetBlockByHashErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestNewGetsBlocksRangePayload(t *testing.T) {
+	start, end := 200, 30
+	p := NewGetBlocksRangePayload(start, end)
+
+	assert.Equal(t, "0", p.ID)
+	assert.Equal(t, "2.0", p.JSONRPC)
+	assert.Equal(t, "get_block_headers_range", p.Method)
+
+	par, ok := p.Params.(GetBlocksRangeParams)
+	assert.True(t, ok)
+	assert.Equal(t, par.StartHeight, start)
+	assert.Equal(t, par.EndHeight, end)
+}
+
+func TestGetBlockHeadersRangeSuccess(t *testing.T) {
+	jsonResp := `
+		{
+			"result": {
+				"headers": [
+					{
+						"hash": "block5",
+						"height": 5,
+						"timestamp": 1535918400,
+						"prev_hash": "block4"
+					},
+					{
+						"hash": "block4",
+						"height": 4,
+						"timestamp": 1535916400,
+						"prev_hash": "block3"
+					},
+					{
+						"hash": "block3",
+						"height": 3,
+						"timestamp": 1535914400,
+						"prev_hash": "block2"
+					}
+				]
+			}
+		}
+	`
+	blocksRange := "" // TODO: This is not used by makeServer anymore. remove
+	server := makeServer(t, "/json_rpc", "POST", blocksRange, 200, jsonResp)
+	defer server.Close()
+
+	client := NewRPCClient(server.URL)
+	client.HTTPClient = server.Client()
+
+	ctx := context.Background()
+	blocks, err := client.GetBlockHeadersRange(ctx, 3, 5)
+
+	assert.Nil(t, err)
+	assert.Equal(t, len(blocks), 3)
+	for _, block := range blocks {
+		assert.NotNil(t, block.Hash)
+		assert.NotNil(t, block.Height)
+		assert.NotNil(t, block.Timestamp)
+		assert.NotNil(t, block.PrevHash)
+	}
+}
+
+func TestGetBlockHeadersRangeErrors(t *testing.T) {
+	errorCases := []struct {
+		Description string
+		RespCode    int
+		JSONResp    string
+	}{
+		{"Unexpected HTTP error", 500, ""},
+		{"Malformed response payload", 200, "[]"},
+		{"RPC Error", 200, `{"error": {"code": -8, "message": "some RPC error"}}`},
+	}
+	for _, c := range errorCases {
+		t.Run(c.Description, func(t *testing.T) {
+			server := makeServer(t, "/json_rpc", "POST", "", c.RespCode, c.JSONResp)
+			defer server.Close()
+
+			client := NewRPCClient(server.URL)
+			client.HTTPClient = server.Client()
+
+			ctx := context.Background()
+			blocks, err := client.GetBlockHeadersRange(ctx, 3, 5)
+			assert.Nil(t, blocks)
+			assert.Error(t, err)
+		})
+	}
+}

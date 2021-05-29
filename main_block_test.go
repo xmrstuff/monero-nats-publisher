@@ -8,21 +8,60 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type MockedBlockGetterReturn struct {
+type MockedGetBlockReturn struct {
 	b *RpcBlock
 	e error
 }
+
+type MockedGetBlocksRangeReturn struct {
+	b []RpcBlockHeader
+	e error
+}
+
+type MockedGetBlocksRangeArg struct {
+	Start int
+	End   int
+}
+
 type MockedBlockGetter struct {
-	CallsCount int
-	HashArgs   []string
-	Returns    []MockedBlockGetterReturn
+	GetBlockCallsCount       int
+	HashArgs                 []string
+	GetBlockReturns          []MockedGetBlockReturn
+	GetBlocksRangeCallsCount int
+	GetBlocksRangeArgs       []MockedGetBlocksRangeArg
+	GetBlocksRangeReturns    []MockedGetBlocksRangeReturn
 }
 
 func (g *MockedBlockGetter) GetBlockByHash(c context.Context, h string) (*RpcBlock, error) {
 	g.HashArgs = append(g.HashArgs, h)
-	g.CallsCount++
-	result := g.Returns[0]
-	g.Returns = g.Returns[1:]
+
+	g.GetBlockCallsCount++
+
+	// pop first entry
+	result := g.GetBlockReturns[0]
+	if len(g.GetBlockReturns) > 1 {
+		g.GetBlockReturns = g.GetBlockReturns[1:]
+	} else {
+		g.GetBlockReturns = []MockedGetBlockReturn{}
+	}
+
+	return result.b, result.e
+}
+
+func (g *MockedBlockGetter) GetBlockHeadersRange(c context.Context, start, end int) ([]RpcBlockHeader, error) {
+	arg := MockedGetBlocksRangeArg{start, end}
+	g.GetBlocksRangeArgs = append(g.GetBlocksRangeArgs, arg)
+
+	g.GetBlocksRangeCallsCount++
+
+	// pop first entry
+	result := g.GetBlocksRangeReturns[0]
+	if len(g.GetBlocksRangeReturns) > 1 {
+		g.GetBlocksRangeReturns = g.GetBlocksRangeReturns[1:]
+	} else {
+		g.GetBlocksRangeReturns = []MockedGetBlocksRangeReturn{}
+	}
+
 	return result.b, result.e
 }
 
@@ -34,9 +73,17 @@ type MockedBlockEventPublisher struct {
 
 func (p *MockedBlockEventPublisher) PushBlockEvent(b Block) error {
 	p.CallsCount++
+
 	p.PassedBlocks = append(p.PassedBlocks, b)
+
+	// pop first entry
 	result := p.Returns[0]
-	p.Returns = p.Returns[1:]
+	if len(p.Returns) > 1 {
+		p.Returns = p.Returns[1:]
+	} else {
+		p.Returns = []error{}
+	}
+
 	return result
 }
 
@@ -45,7 +92,7 @@ func TestProcessBlockHash(t *testing.T) {
 	t.Run("Success, ignoring ancestors", func(t *testing.T) {
 		blockHash := "block X"
 		rpcClient := MockedBlockGetter{
-			Returns: []MockedBlockGetterReturn{
+			GetBlockReturns: []MockedGetBlockReturn{
 				{
 					b: &RpcBlock{BlockHeader: RpcBlockHeader{Hash: blockHash}},
 					e: nil,
@@ -64,39 +111,32 @@ func TestProcessBlockHash(t *testing.T) {
 		err := ProcessBlockHash(blockHash, maxAncestors, &rpcClient, &evPublisher)
 		assert.Nil(t, err)
 
-		assert.Equal(t, 1, rpcClient.CallsCount)
+		assert.Equal(t, 1, rpcClient.GetBlockCallsCount)
 		assert.Equal(t, blockHash, rpcClient.HashArgs[0])
 
 		assert.Equal(t, 1, evPublisher.CallsCount)
 	})
 
 	t.Run("Success, more ancestors than requested", func(t *testing.T) {
-		hash0, hash1, hash2, hash3 := "block X-3", "block X-2", "block X-1", "block X"
+		hashes := []string{"block 2", "block 3", "block 4", "block 5"}
+		heights := []int{2, 3, 4, 5}
+
 		rpcClient := MockedBlockGetter{
-			Returns: []MockedBlockGetterReturn{
+			GetBlockReturns: []MockedGetBlockReturn{
 				{
 					b: &RpcBlock{
-						BlockHeader: RpcBlockHeader{Hash: hash3, PrevHash: hash2},
+						BlockHeader: RpcBlockHeader{Hash: hashes[3], Height: heights[3], PrevHash: hashes[2]},
 					},
 					e: nil,
 				},
+			},
+			GetBlocksRangeReturns: []MockedGetBlocksRangeReturn{
 				{
-					b: &RpcBlock{
-						BlockHeader: RpcBlockHeader{Hash: hash2, PrevHash: hash1},
-					},
 					e: nil,
-				},
-				{
-					b: &RpcBlock{
-						BlockHeader: RpcBlockHeader{Hash: hash1, PrevHash: hash0},
+					b: []RpcBlockHeader{
+						{Hash: hashes[2], Height: heights[2]},
+						{Hash: hashes[1], Height: heights[1]},
 					},
-					e: nil,
-				},
-				{
-					b: &RpcBlock{
-						BlockHeader: RpcBlockHeader{Hash: hash0},
-					},
-					e: nil,
 				},
 			},
 		}
@@ -104,33 +144,43 @@ func TestProcessBlockHash(t *testing.T) {
 			Returns: []error{nil},
 		}
 
-		maxAncestors := 1
-		err := ProcessBlockHash(hash3, maxAncestors, &rpcClient, &evPublisher)
+		maxAncestors := 2
+		err := ProcessBlockHash(hashes[3], maxAncestors, &rpcClient, &evPublisher)
 		assert.Nil(t, err)
 
-		assert.Equal(t, 2, rpcClient.CallsCount)
-		assert.Equal(t, []string{hash3, hash2}, rpcClient.HashArgs)
+		assert.Equal(t, 1, rpcClient.GetBlockCallsCount)
+		assert.Equal(t, []string{hashes[3]}, rpcClient.HashArgs)
+
+		assert.Equal(t, 1, rpcClient.GetBlocksRangeCallsCount)
+		assert.Equal(t, heights[1], rpcClient.GetBlocksRangeArgs[0].Start)
+		assert.Equal(t, heights[2], rpcClient.GetBlocksRangeArgs[0].End)
 
 		assert.Equal(t, 1, evPublisher.CallsCount)
-		assert.Equal(t, hash3, evPublisher.PassedBlocks[0].Hash)
-		assert.Equal(t, []string{hash2, hash1}, evPublisher.PassedBlocks[0].PrevHashes)
+		assert.Equal(t, hashes[3], evPublisher.PassedBlocks[0].Hash)
+		assert.Equal(t, []string{hashes[2], hashes[1]}, evPublisher.PassedBlocks[0].PrevHashes)
 	})
 
 	t.Run("Success, less ancestors than requested", func(t *testing.T) {
-		hash1, hash2 := "block X-1", "block X"
+		hashes := []string{"block genesis", "block 1", "block 2", "block 3"}
+		heights := []int{0, 1, 2, 3}
+
 		rpcClient := MockedBlockGetter{
-			Returns: []MockedBlockGetterReturn{
+			GetBlockReturns: []MockedGetBlockReturn{
 				{
 					b: &RpcBlock{
-						BlockHeader: RpcBlockHeader{Hash: hash2, PrevHash: hash1},
+						BlockHeader: RpcBlockHeader{Hash: hashes[3], Height: heights[3], PrevHash: hashes[2]},
 					},
 					e: nil,
 				},
+			},
+			GetBlocksRangeReturns: []MockedGetBlocksRangeReturn{
 				{
-					b: &RpcBlock{
-						BlockHeader: RpcBlockHeader{Hash: hash1},
-					},
 					e: nil,
+					b: []RpcBlockHeader{
+						{Hash: hashes[2], Height: heights[2]},
+						{Hash: hashes[1], Height: heights[1]},
+						{Hash: hashes[0], Height: heights[0]},
+					},
 				},
 			},
 		}
@@ -139,21 +189,25 @@ func TestProcessBlockHash(t *testing.T) {
 		}
 
 		maxAncestors := 5
-		err := ProcessBlockHash(hash2, maxAncestors, &rpcClient, &evPublisher)
+		err := ProcessBlockHash(hashes[3], maxAncestors, &rpcClient, &evPublisher)
 		assert.Nil(t, err)
 
-		assert.Equal(t, 2, rpcClient.CallsCount)
-		assert.Equal(t, []string{hash2, hash1}, rpcClient.HashArgs)
+		assert.Equal(t, 1, rpcClient.GetBlockCallsCount)
+		assert.Equal(t, []string{hashes[3]}, rpcClient.HashArgs)
+
+		assert.Equal(t, 1, rpcClient.GetBlocksRangeCallsCount)
+		assert.Equal(t, heights[0], rpcClient.GetBlocksRangeArgs[0].Start)
+		assert.Equal(t, heights[2], rpcClient.GetBlocksRangeArgs[0].End)
 
 		assert.Equal(t, 1, evPublisher.CallsCount)
-		assert.Equal(t, hash2, evPublisher.PassedBlocks[0].Hash)
-		assert.Equal(t, []string{hash1}, evPublisher.PassedBlocks[0].PrevHashes)
+		assert.Equal(t, hashes[3], evPublisher.PassedBlocks[0].Hash)
+		assert.Equal(t, []string{hashes[2], hashes[1], hashes[0]}, evPublisher.PassedBlocks[0].PrevHashes)
 	})
 
-	t.Run("RPC call fails", func(t *testing.T) {
+	t.Run("GetBlockByHash RPC call fails", func(t *testing.T) {
 		blockHash := "dummy hash"
 		rpcClient := MockedBlockGetter{
-			Returns: []MockedBlockGetterReturn{
+			GetBlockReturns: []MockedGetBlockReturn{
 				{
 					b: nil,
 					e: fmt.Errorf("Dummy error"),
@@ -168,8 +222,46 @@ func TestProcessBlockHash(t *testing.T) {
 		err := ProcessBlockHash(blockHash, 0, &rpcClient, &evPublisher)
 		assert.Error(t, err)
 
-		assert.Equal(t, 1, rpcClient.CallsCount)
+		assert.Equal(t, 1, rpcClient.GetBlockCallsCount)
 		assert.Equal(t, blockHash, rpcClient.HashArgs[0])
+
+		assert.Equal(t, 0, rpcClient.GetBlocksRangeCallsCount)
+
+		assert.Equal(t, 0, evPublisher.CallsCount)
+	})
+
+	t.Run("GetBlockHeadersRange RPC call fails", func(t *testing.T) {
+		blockHash := "dummy hash"
+		rpcClient := MockedBlockGetter{
+			GetBlockReturns: []MockedGetBlockReturn{
+				{
+					b: &RpcBlock{
+						BlockHeader: RpcBlockHeader{Hash: "block 5", Height: 5, PrevHash: "block 4"},
+					},
+					e: nil,
+				},
+			},
+			GetBlocksRangeReturns: []MockedGetBlocksRangeReturn{
+				{
+					e: fmt.Errorf("Dummy error"),
+					b: nil,
+				},
+			},
+		}
+
+		evPublisher := MockedBlockEventPublisher{
+			Returns: []error{nil},
+		}
+
+		err := ProcessBlockHash(blockHash, 1, &rpcClient, &evPublisher)
+		assert.Error(t, err)
+
+		assert.Equal(t, 1, rpcClient.GetBlockCallsCount)
+		assert.Equal(t, blockHash, rpcClient.HashArgs[0])
+
+		assert.Equal(t, 1, rpcClient.GetBlocksRangeCallsCount)
+		assert.Equal(t, 4, rpcClient.GetBlocksRangeArgs[0].Start)
+		assert.Equal(t, 4, rpcClient.GetBlocksRangeArgs[0].End)
 
 		assert.Equal(t, 0, evPublisher.CallsCount)
 	})
@@ -177,7 +269,7 @@ func TestProcessBlockHash(t *testing.T) {
 	t.Run("Event publishing fails", func(t *testing.T) {
 		blockHash := "dummy hash"
 		rpcClient := MockedBlockGetter{
-			Returns: []MockedBlockGetterReturn{
+			GetBlockReturns: []MockedGetBlockReturn{
 				{
 					b: &RpcBlock{BlockHeader: RpcBlockHeader{Hash: blockHash}},
 					e: nil,
@@ -192,7 +284,7 @@ func TestProcessBlockHash(t *testing.T) {
 		err := ProcessBlockHash(blockHash, 0, &rpcClient, &evPublisher)
 		assert.Error(t, err)
 
-		assert.Equal(t, 1, rpcClient.CallsCount)
+		assert.Equal(t, 1, rpcClient.GetBlockCallsCount)
 		assert.Equal(t, blockHash, rpcClient.HashArgs[0])
 
 		assert.Equal(t, 1, evPublisher.CallsCount)
