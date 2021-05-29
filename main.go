@@ -64,7 +64,7 @@ func main() {
 
 					rpcClient := NewRPCClient(walletURL)
 					evPublisher := NewNatsPublishingClient(natsURL)
-					return ProcessTxid(txid, rpcClient, evPublisher)
+					return ProcessTxid(txid, ignoreBelowHeight, rpcClient, evPublisher)
 				},
 			},
 			{
@@ -117,7 +117,7 @@ type TxEventPublisher interface {
 
 // ProcessTxid fetches extra context about the Monero Transaction from
 // Monero Wallet RPC. Then publishes a NATS event about the Transaction.
-func ProcessTxid(txid string, rc TxGetter, nc TxEventPublisher) error {
+func ProcessTxid(txid string, ignoreBelowheight int, rc TxGetter, nc TxEventPublisher) error {
 	ctx := context.Background()
 	transfers, err := rc.GetTransferByTxid(ctx, txid)
 	if err != nil {
@@ -127,6 +127,12 @@ func ProcessTxid(txid string, rc TxGetter, nc TxEventPublisher) error {
 	tx, err := RpcTxToTx(transfers)
 	if err != nil {
 		return err
+	}
+
+	if tx.Height < ignoreBelowheight {
+		// The Tx is below ignoring height. It won't be
+		// published to NATS
+		return nil
 	}
 
 	return nc.PushTxEvent(*tx)

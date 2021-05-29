@@ -38,7 +38,7 @@ type TxGetterRecording struct {
 func (g *TxGetterRecording) GetTransferByTxid(c context.Context, t string) ([]RpcTx, error) {
 	g.PassedTXID = t
 	g.CallsCount++
-	return []RpcTx{{TXID: t, Type: "in"}}, nil
+	return []RpcTx{{TXID: t, Type: "in", Height: 3}}, nil
 }
 
 type TxEvPublisherBreaking struct {
@@ -59,8 +59,25 @@ func TestProcessTxid(t *testing.T) {
 		txGetter := TxGetterRecording{}
 		evPublisher := TxEventPublisherRecording{}
 
-		err := ProcessTxid(txid, &txGetter, &evPublisher)
+		ignoreBelowHeight := 0 // Don't ignore any Tx
+		err := ProcessTxid(txid, ignoreBelowHeight, &txGetter, &evPublisher)
 		assert.Nil(t, err)
+
+		assert.Equal(t, 1, evPublisher.CallsCount)
+		assert.Equal(t, txid, evPublisher.PassedTX.TXID)
+	})
+
+	t.Run("Success, Tx below ignoring height", func(t *testing.T) {
+		txid := "dummy tx"
+		txGetter := TxGetterRecording{}
+		evPublisher := TxEventPublisherRecording{}
+
+		ignoreBelowHeight := 5 // The Tx will be ignored
+		err := ProcessTxid(txid, ignoreBelowHeight, &txGetter, &evPublisher)
+		assert.Nil(t, err)
+
+		// The Tx was not pushed to NATS, because it is below ignoring height
+		assert.Equal(t, 0, evPublisher.CallsCount)
 	})
 
 	t.Run("RPC Error", func(t *testing.T) {
@@ -68,7 +85,8 @@ func TestProcessTxid(t *testing.T) {
 		txGetter := TxGetterBroken{}
 		evPublisher := TxEventPublisherRecording{}
 
-		err := ProcessTxid(txid, &txGetter, &evPublisher)
+		ignoreBelowHeight := 0
+		err := ProcessTxid(txid, ignoreBelowHeight, &txGetter, &evPublisher)
 		assert.Error(t, err)
 
 		assert.Equal(t, 1, txGetter.CallsCount)
@@ -82,7 +100,8 @@ func TestProcessTxid(t *testing.T) {
 		txGetter := TxGetterRecording{}
 		evPublisher := TxEvPublisherBreaking{}
 
-		err := ProcessTxid(txid, &txGetter, &evPublisher)
+		ignoreBelowHeight := 0
+		err := ProcessTxid(txid, ignoreBelowHeight, &txGetter, &evPublisher)
 		assert.Error(t, err)
 
 		assert.Equal(t, 1, txGetter.CallsCount)
